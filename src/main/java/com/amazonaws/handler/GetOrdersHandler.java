@@ -17,8 +17,7 @@
 
 package com.amazonaws.handler;
 
-import com.amazonaws.config.DaggerOrderComponent;
-import com.amazonaws.config.OrderComponent;
+import com.amazonaws.config.OrderModule;
 import com.amazonaws.dao.OrderDao;
 import com.amazonaws.model.OrderPage;
 import com.amazonaws.model.response.GatewayResponse;
@@ -27,23 +26,25 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.java.Log;
+import lombok.extern.log4j.Log4j2;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Optional;
-import javax.inject.Inject;
 
+
+@Log
 public class GetOrdersHandler implements OrderRequestStreamHandler {
-    @Inject
+
     ObjectMapper objectMapper;
-    @Inject
     OrderDao orderDao;
-    private final OrderComponent orderComponent;
 
     public GetOrdersHandler() {
-        orderComponent = DaggerOrderComponent.builder().build();
-        orderComponent.inject(this);
+        objectMapper = OrderModule.getInstance().getObjectMapper();
+        orderDao = OrderModule.getInstance().getOrderDao();
     }
 
     @Override
@@ -61,7 +62,9 @@ public class GetOrdersHandler implements OrderRequestStreamHandler {
                 .map(mapNode -> mapNode.get("exclusive_start_key").asText())
                 .orElse(null);
 
+
         OrderPage page = orderDao.getOrders(exclusiveStartKeyQueryParameter);
+        log.info("GetOrdersHandler handleRequest ");
         //TODO handle exceptions
         objectMapper.writeValue(output, new GatewayResponse<>(
                 objectMapper.writeValueAsString(

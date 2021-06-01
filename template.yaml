@@ -16,10 +16,39 @@ Globals:
             ENDPOINT_OVERRIDE: ""
 
 Resources:
+  AccessLogGroup:
+    Type: AWS::Logs::LogGroup
+
+
+  AuthAPI:
+    Type: AWS::Serverless::Api
+    Properties:
+         MethodSettings:
+            - LoggingLevel: INFO
+              ResourcePath: '/*' # allows for logging on any resource
+              HttpMethod: '*' # allows for logging on any method
+
+         Auth:
+#             ApiKeyRequired: true
+
+             DefaultAuthorizer: MyCognitoAuthorizer
+
+             Authorizers:
+               MyCognitoAuthorizer:
+                 UserPoolArn: !GetAtt MyCognitoUserPool.Arn
+#                 identitySource: method.request.header.Authorization
+#                 identityValidationExpression: Bearer .*
+
+
+         StageName: Prod
+         AccessLogSetting:
+            DestinationArn: !GetAtt AccessLogGroup.Arn
+            Format: '{"requestTime":"$context.requestTime","requestId":"$context.requestId","httpMethod":"$context.httpMethod","path":"$context.path","resourcePath":"$context.resourcePath","status":$context.status,"responseLatency":$context.responseLatency}'
+
   GetOrderFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: target/aws-sam-java-rest-1.0.0.jar
+      CodeUri: .
       Handler: com.amazonaws.handler.GetOrderHandler::handleRequest
       Runtime: java8
       Policies:
@@ -31,10 +60,13 @@ Resources:
           Properties:
             Path: /orders/{order_id}
             Method: get
+            RestApiId: !Ref AuthAPI
+
+
   GetOrdersFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: target/aws-sam-java-rest-1.0.0.jar
+      CodeUri: .
       Handler: com.amazonaws.handler.GetOrdersHandler::handleRequest
       Runtime: java8
       Policies:
@@ -44,12 +76,24 @@ Resources:
         GetOrders:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Properties:
+            RestApiId: !Ref AuthAPI
             Path: /orders
             Method: get
+#            Auth:
+#              Authorizer: MyCognitoAuthorizer
+        GetOrdersOpen:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            RestApiId: !Ref AuthAPI
+            Path: /orderopen
+            Method: get
+            Auth:
+              Authorizer: NONE
+
   UpdateOrderFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: target/aws-sam-java-rest-1.0.0.jar
+      CodeUri: .
       Handler: com.amazonaws.handler.UpdateOrderHandler::handleRequest
       Runtime: java8
       Policies:
@@ -61,10 +105,13 @@ Resources:
           Properties:
             Path: /orders/{order_id}
             Method: post
+            RestApiId: !Ref AuthAPI
+
+
   DeleteOrderFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: target/aws-sam-java-rest-1.0.0.jar
+      CodeUri: .
       Handler: com.amazonaws.handler.DeleteOrderHandler::handleRequest
       Runtime: java8
       Policies:
@@ -76,10 +123,12 @@ Resources:
           Properties:
             Path: /orders/{order_id}
             Method: delete
+            RestApiId: !Ref AuthAPI
+
   CreateOrderFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: target/aws-sam-java-rest-1.0.0.jar
+      CodeUri: .
       Handler: com.amazonaws.handler.CreateOrderHandler::handleRequest
       Runtime: java8
       Policies:
@@ -91,6 +140,11 @@ Resources:
           Properties:
             Path: /orders
             Method: post
+            RestApiId: !Ref AuthAPI
+
+
+
+
 
   OrdersTable:
     Type: AWS::DynamoDB::Table
@@ -104,10 +158,53 @@ Resources:
           KeyType: HASH
       BillingMode: PAY_PER_REQUEST
 
+  MyCognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: steve-user-pool
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+      UsernameAttributes:
+        - email
+      Schema:
+        - AttributeDataType: String
+          Name: email
+          Required: false
+  MyCognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref MyCognitoUserPool
+      ClientName: steve-user-pool-client
+       # Generate an app client name based on the stag
+      RefreshTokenValidity: 30
+      AllowedOAuthFlows:
+        - code
+        - implicit
+      ExplicitAuthFlows:
+          - ALLOW_USER_PASSWORD_AUTH
+          - ALLOW_REFRESH_TOKEN_AUTH
+          - ALLOW_USER_SRP_AUTH
+          - ALLOW_ADMIN_USER_PASSWORD_AUTH
+      CallbackURLs:
+        - https://steve-user-test.ouath2.callback
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+        - aws.cognito.signin.user.admin
+      GenerateSecret: true
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      AllowedOAuthFlowsUserPoolClient: true
+      SupportedIdentityProviders:
+        - COGNITO
 Outputs:
     HelloWorldApi:
       Description: "API Gateway endpoint URL for Prod stage for Hello World function"
-      Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
+      Value: !Sub "https://${AuthAPI}.execute-api.${AWS::Region}.amazonaws.com/Prod/orders/"
 
     GetOrderFunction:
       Description: "GetOrder Lambda Function ARN"
@@ -128,3 +225,11 @@ Outputs:
     CreateOrderFunction:
       Description: "CreateOrder Lambda Function ARN"
       Value: !GetAtt CreateOrderFunction.Arn
+
+    UserPoolId:
+      Value:
+       Ref: MyCognitoUserPool
+
+    UserPoolClientId:
+        Value:
+         Ref: MyCognitoUserPoolClient

@@ -35,5 +35,7 @@ public class Order {
     private String customerId;
     private BigDecimal preTaxAmount;
     private BigDecimal postTaxAmount;
+    private String description;
+
     private Long version;
 }

@@ -18,31 +18,45 @@
 package com.amazonaws.config;
 
 import com.amazonaws.dao.OrderDao;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dagger.Module;
-import dagger.Provides;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 
+import javax.inject.Named;
 import java.net.URI;
 import java.util.Optional;
-import javax.inject.Named;
-import javax.inject.Singleton;
 
-@Module
+
 public class OrderModule {
-    @Singleton
-    @Provides
-    @Named("tableName")
-    String tableName() {
+
+
+    private static OrderModule INSTANCE = new OrderModule();
+    private String tableName;
+    private DynamoDbClient dynamoDbClient;
+    private ObjectMapper objectMapper;
+    private OrderDao orderDao;
+
+    private OrderModule() {
+        tableName = tableName();
+        dynamoDbClient = dynamoDb();
+        objectMapper = objectMapper();
+        orderDao = orderDao(dynamoDbClient, tableName);
+
+    }
+
+
+    public static OrderModule getInstance() {
+        return INSTANCE;
+    }
+
+
+    private String tableName() {
         return Optional.ofNullable(System.getenv("TABLE_NAME")).orElse("orders_table");
     }
 
-    @Singleton
-    @Provides
-    DynamoDbClient dynamoDb() {
+
+    private DynamoDbClient dynamoDb() {
         final String endpoint = System.getenv("ENDPOINT_OVERRIDE");
 
         DynamoDbClientBuilder builder = DynamoDbClient.builder();
@@ -54,15 +68,28 @@ public class OrderModule {
         return builder.build();
     }
 
-    @Singleton
-    @Provides
-    ObjectMapper objectMapper() {
+
+    private ObjectMapper objectMapper() {
         return new ObjectMapper();
     }
 
-    @Singleton
-    @Provides
-    public OrderDao orderDao(DynamoDbClient dynamoDb, @Named("tableName") String tableName) {
-        return new OrderDao(dynamoDb, tableName,10);
+    private OrderDao orderDao(DynamoDbClient dynamoDb, @Named("tableName") String tableName) {
+        return new OrderDao(dynamoDb, tableName, 10);
+    }
+
+    public String getTableName() {
+        return tableName;
+    }
+
+    public DynamoDbClient getDynamoDbClient() {
+        return dynamoDbClient;
+    }
+
+    public ObjectMapper getObjectMapper() {
+        return objectMapper;
+    }
+
+    public OrderDao getOrderDao() {
+        return orderDao;
     }
 }

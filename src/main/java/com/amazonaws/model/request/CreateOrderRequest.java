@@ -32,8 +32,10 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @Builder
 @JsonAutoDetect
+
 public class CreateOrderRequest {
     private String customerId;
     private Long preTaxAmount;
     private Long postTaxAmount;
+    private String description;
 }

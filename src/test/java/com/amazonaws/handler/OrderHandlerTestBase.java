@@ -17,20 +17,11 @@
 
 package com.amazonaws.handler;
 
-import com.amazonaws.config.DaggerOrderTestComponent;
-import com.amazonaws.config.OrderTestComponent;
+import com.amazonaws.config.OrderModule;
 import org.junit.After;
 import org.junit.Before;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
-import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
-import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
-import software.amazon.awssdk.services.dynamodb.model.DeleteTableRequest;
-import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
-import software.amazon.awssdk.services.dynamodb.model.KeyType;
-import software.amazon.awssdk.services.dynamodb.model.ProvisionedThroughput;
-import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
-
-import javax.inject.Inject;
+import software.amazon.awssdk.services.dynamodb.model.*;
 
 /**
  * This class serves as the base class for Integration tests. do not include I T in
@@ -39,14 +30,11 @@ import javax.inject.Inject;
 public abstract class OrderHandlerTestBase {
     private static final String TABLE_NAME = "orders_table";
 
-    private final OrderTestComponent orderComponent;
 
-    @Inject
     DynamoDbClient dynamoDb;
 
     public OrderHandlerTestBase() {
-        orderComponent = DaggerOrderTestComponent.builder().build();
-        orderComponent.inject(this);
+        dynamoDb = OrderModule.getInstance().getDynamoDbClient();
     }
 
     @Before

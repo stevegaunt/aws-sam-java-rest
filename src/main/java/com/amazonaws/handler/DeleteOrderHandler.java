@@ -17,8 +17,7 @@
 
 package com.amazonaws.handler;
 
-import com.amazonaws.config.DaggerOrderComponent;
-import com.amazonaws.config.OrderComponent;
+import com.amazonaws.config.OrderModule;
 import com.amazonaws.dao.OrderDao;
 import com.amazonaws.exception.OrderDoesNotExistException;
 import com.amazonaws.exception.UnableToDeleteException;
@@ -33,18 +32,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Optional;
-import javax.inject.Inject;
 
 public class DeleteOrderHandler implements OrderRequestStreamHandler {
-    @Inject
     ObjectMapper objectMapper;
-    @Inject
     OrderDao orderDao;
-    private final OrderComponent orderComponent;
 
     public DeleteOrderHandler() {
-        orderComponent = DaggerOrderComponent.builder().build();
-        orderComponent.inject(this);
+        objectMapper = OrderModule.getInstance().getObjectMapper();
+        orderDao = OrderModule.getInstance().getOrderDao();
+
     }
 
     @Override

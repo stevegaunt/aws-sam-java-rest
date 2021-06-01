@@ -33,5 +33,7 @@ public class UpdateOrderRequest {
     private String customerId;
     private BigDecimal preTaxAmount;
     private BigDecimal postTaxAmount;
+    private String description;
+
     private Long version;
 }

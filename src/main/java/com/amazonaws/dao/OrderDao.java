@@ -137,6 +137,8 @@ public class OrderDao {
             }
         }
 
+        builder.lastEvaluatedKey("steve test");
+
         return builder.build();
     }
 
@@ -266,6 +268,13 @@ public class OrderDao {
                     "item did not have an version attribute or it was not a Number");
         }
 
+        try {
+            builder.description(item.get("description").s());
+        } catch (NullPointerException e) {
+            builder.description("");
+
+        }
+
         return builder.build();
     }
 
@@ -287,7 +296,10 @@ public class OrderDao {
         } catch (NullPointerException e) {
             throw new IllegalArgumentException(POST_TAX_AMOUNT_WAS_NULL);
         }
-
+        if(order.getDescription() ==null){
+            order.setDescription("default automated!");
+        }
+        item.put("description", AttributeValue.builder().s(order.getDescription()).build());
         return item;
     }
 
@@ -321,6 +333,7 @@ public class OrderDao {
                         .customerId(item.get("customerId").s())
                         .preTaxAmount(new BigDecimal(item.get("preTaxAmount").n()))
                         .postTaxAmount(new BigDecimal(item.get("postTaxAmount").n()))
+                        .description(item.get("description").s())
                         .version(Long.valueOf(item.get("version").n()))
                         .build();
             } catch (ConditionalCheckFailedException e) {

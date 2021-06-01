@@ -17,9 +17,6 @@
 
 package com.amazonaws.handler;
 
-import com.amazonaws.config.DaggerOrderComponent;
-import com.amazonaws.config.OrderComponent;
-import com.amazonaws.dao.OrderDao;
 import com.amazonaws.exception.CouldNotCreateOrderException;
 import com.amazonaws.model.Order;
 import com.amazonaws.model.request.CreateOrderRequest;
@@ -29,14 +26,18 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.java.Log;
+import lombok.extern.log4j.Log4j;
+import lombok.extern.log4j.Log4j2;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Optional;
-import javax.inject.Inject;
 
+import static com.amazonaws.config.OrderModule.getInstance;
+
+@Log
 public class CreateOrderHandler implements OrderRequestStreamHandler {
     private static final ErrorMessage REQUIRE_CUSTOMER_ID_ERROR
             = new ErrorMessage("Require customerId to create an order", SC_BAD_REQUEST);
@@ -47,15 +48,9 @@ public class CreateOrderHandler implements OrderRequestStreamHandler {
             = new ErrorMessage("Require postTaxAmount to create an order",
             SC_BAD_REQUEST);
 
-    @Inject
-    ObjectMapper objectMapper;
-    @Inject
-    OrderDao orderDao;
-    private final OrderComponent orderComponent;
 
     public CreateOrderHandler() {
-        orderComponent = DaggerOrderComponent.builder().build();
-        orderComponent.inject(this);
+
     }
 
     @Override
@@ -63,21 +58,21 @@ public class CreateOrderHandler implements OrderRequestStreamHandler {
                               Context context) throws IOException {
         final JsonNode event;
         try {
-            event = objectMapper.readTree(input);
+            event = getInstance().getObjectMapper().readTree(input);
         } catch (JsonMappingException e) {
-            writeInvalidJsonInStreamResponse(objectMapper, output, e.getMessage());
+            writeInvalidJsonInStreamResponse(getInstance().getObjectMapper(), output, e.getMessage());
             return;
         }
 
         if (event == null) {
-            writeInvalidJsonInStreamResponse(objectMapper, output, "event was null");
+            writeInvalidJsonInStreamResponse(getInstance().getObjectMapper(), output, "event was null");
             return;
         }
         JsonNode createOrderRequestBody = event.findValue("body");
         if (createOrderRequestBody == null) {
-            objectMapper.writeValue(output,
+            getInstance().getObjectMapper().writeValue(output,
                     new GatewayResponse<>(
-                            objectMapper.writeValueAsString(
+                            getInstance().getObjectMapper().writeValueAsString(
                                     new ErrorMessage("Body was null",
                                             SC_BAD_REQUEST)),
                             APPLICATION_JSON, SC_BAD_REQUEST));
@@ -85,13 +80,13 @@ public class CreateOrderHandler implements OrderRequestStreamHandler {
         }
         final CreateOrderRequest request;
         try {
-            request = objectMapper.treeToValue(
-                    objectMapper.readTree(createOrderRequestBody.asText()),
+            request = getInstance().getObjectMapper().treeToValue(
+                    getInstance().getObjectMapper().readTree(createOrderRequestBody.asText()),
                     CreateOrderRequest.class);
         } catch (JsonParseException | JsonMappingException e) {
-            objectMapper.writeValue(output,
+            getInstance().getObjectMapper().writeValue(output,
                     new GatewayResponse<>(
-                            objectMapper.writeValueAsString(
+                            getInstance().getObjectMapper().writeValueAsString(
                                     new ErrorMessage("Invalid JSON in body: "
                                             + e.getMessage(), SC_BAD_REQUEST)),
                             APPLICATION_JSON, SC_BAD_REQUEST));
@@ -99,43 +94,46 @@ public class CreateOrderHandler implements OrderRequestStreamHandler {
         }
 
         if (request == null) {
-            objectMapper.writeValue(output,
+            getInstance().getObjectMapper().writeValue(output,
                     new GatewayResponse<>(
-                            objectMapper.writeValueAsString(REQUEST_WAS_NULL_ERROR),
+                            getInstance().getObjectMapper().writeValueAsString(REQUEST_WAS_NULL_ERROR),
                             APPLICATION_JSON, SC_BAD_REQUEST));
             return;
         }
 
         if (isNullOrEmpty(request.getCustomerId())) {
-            objectMapper.writeValue(output,
+            getInstance().getObjectMapper().writeValue(output,
                     new GatewayResponse<>(
-                            objectMapper.writeValueAsString(REQUIRE_CUSTOMER_ID_ERROR),
+                            getInstance().getObjectMapper().writeValueAsString(REQUIRE_CUSTOMER_ID_ERROR),
                             APPLICATION_JSON, SC_BAD_REQUEST));
             return;
         }
         if (request.getPreTaxAmount() == null) {
-            objectMapper.writeValue(output,
+            getInstance().getObjectMapper().writeValue(output,
                     new GatewayResponse<>(
-                            objectMapper.writeValueAsString(REQUIRE_PRETAX_AMOUNT_ERROR),
+                            getInstance().getObjectMapper().writeValueAsString(REQUIRE_PRETAX_AMOUNT_ERROR),
                             APPLICATION_JSON, SC_BAD_REQUEST));
             return;
         }
         if (request.getPostTaxAmount() == null) {
-            objectMapper.writeValue(output,
+            getInstance().getObjectMapper().writeValue(output,
                     new GatewayResponse<>(
-                            objectMapper.writeValueAsString(REQUIRE_POST_TAX_AMOUNT_ERROR),
+                            getInstance().getObjectMapper().writeValueAsString(REQUIRE_POST_TAX_AMOUNT_ERROR),
                             APPLICATION_JSON, SC_BAD_REQUEST));
             return;
         }
+
+        log.info("Creating order : "+ getInstance().getObjectMapper().writeValueAsString(request));
+
         try {
-            final Order order = orderDao.createOrder(request);
-            objectMapper.writeValue(output,
-                    new GatewayResponse<>(objectMapper.writeValueAsString(order),
+            final Order order = getInstance().getOrderDao().createOrder(request);
+            getInstance().getObjectMapper().writeValue(output,
+                    new GatewayResponse<>(getInstance().getObjectMapper().writeValueAsString(order),
                             APPLICATION_JSON, SC_CREATED)); //TODO redirect with a 303
         } catch (CouldNotCreateOrderException e) {
-            objectMapper.writeValue(output,
+            getInstance().getObjectMapper().writeValue(output,
                     new GatewayResponse<>(
-                            objectMapper.writeValueAsString(
+                            getInstance().getObjectMapper().writeValueAsString(
                                     new ErrorMessage(e.getMessage(),
                                             SC_INTERNAL_SERVER_ERROR)),
                             APPLICATION_JSON, SC_INTERNAL_SERVER_ERROR));
